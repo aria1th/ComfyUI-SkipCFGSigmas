@@ -41,18 +41,15 @@ class CFGControl_SKIPCFG:
 
     def patch(self, model: ModelPatcher, sigma_min:int, sigma_max:int, rescale_strength:0.0):
         def skip_cfg(args):
-            denoised = args["denoised"]
-            if sigma_min <= args["sigma"] <= sigma_max:
-                #print(f"sampling timestep {args['sigma']} skipped")
-                return denoised # default
+            skip_mask = (args["sigma"] >= sigma_min) & (args["sigma"] <= sigma_max)
+            if rescale_strength > 0:
+                diff = args["denoised"] - args["cond_denoised"]
+                pred = args["cond_denoised"] + rescale_strength * diff
             else:
-                #print(f"sampling timestep {args['sigma']} passed")
-                if rescale_strength > 0:
-                    cond_denoise_diff = args["denoised"] - args["cond_denoised"]
-                    pred = args["cond_denoised"] + rescale_strength * cond_denoise_diff
-                else:
-                    pred = args["cond_denoised"] # ignore uncond
-                return pred
+                pred = args["cond_denoised"]
+            pred[skip_mask] = args["denoised"][skip_mask]
+            return pred
+
         m = model.clone()
         m.set_model_sampler_post_cfg_function(skip_cfg)
         return (m,)
